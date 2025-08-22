@@ -1,0 +1,60 @@
+account_sets:
+  marketing:
+    topic: "마케팅"
+    description: "마케팅 관련 콘텐츠 계정 세트"
+    accounts:
+      - platform: tistory
+        username: marketing_blog_id
+        password: marketing_blog_pw
+        blog_url: https://marketing-blog.tistory.com
+      - platform: x
+        username: marketing_x_id
+        password: marketing_x_pw
+      - platform: threads
+        username: marketing_threads_id
+        password: marketing_threads_pw
+
+  relationship:
+    topic: "관계/연애"
+    description: "관계/연애 관련 콘텐츠 계정 세트"
+    accounts:
+      - platform: tistory
+        username: relationship_blog_id
+        password: relationship_blog_pw
+        blog_url: https://relationship-blog.tistory.com
+      - platform: x
+        username: relationship_x_id
+        password: relationship_x_pw
+      - platform: threads
+        username: relationship_threads_id
+        password: relationship_threads_pw
+
+  health:
+    topic: "건강/웰빙"
+    description: "건강/웰빙 관련 콘텐츠 계정 세트"
+    accounts:
+      - platform: tistory
+        username: health_blog_id
+        password: health_blog_pw
+        blog_url: https://health-blog.tistory.com
+      - platform: x
+        username: health_x_id
+        password: health_x_pw
+      - platform: threads
+        username: health_threads_id
+        password: health_threads_pw
+
+  finance:
+    topic: "개인 금융"
+    description: "개인 금융 관련 콘텐츠 계정 세트"
+    accounts:
+      - platform: tistory
+        username: finance_blog_id
+        password: finance_blog_pw
+        blog_url: https://finance-blog.tistory.com
+      - platform: x
+        username: finance_x_id
+        password: finance_x_pw
+      - platform: threads
+        username: finance_threads_id
+        password: finance_threads_pw

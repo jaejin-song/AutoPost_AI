@@ -1,0 +1,33 @@
+# Core dependencies
+requests>=2.31.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+PyYAML>=6.0.1
+
+# Data collection
+pytrends>=4.9.2
+newsapi-python>=0.2.7
+google-auth>=2.23.3
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.1.1
+google-api-python-client>=2.100.0
+gspread>=5.11.3
+
+# AI/LLM
+ollama>=0.1.7
+
+# Automation
+playwright>=1.40.0
+
+# Social media APIs
+tweepy>=4.14.0
+
+# Utilities
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Development
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+black>=23.9.1
+flake8>=6.1.0
