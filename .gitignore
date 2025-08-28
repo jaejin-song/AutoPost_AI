@@ -1,9 +1,14 @@
-# Sensitive configuration files
-config/.env
-config/accounts.yaml
-config/service_account.json
+# Python 환경
+.venv
+venv/
+env/
 
-# Python
+# 민감한 설정 파일
+accounts.yaml
+service_account.json
+.env
+
+# Python 관련
 __pycache__/
 *.py[cod]
 *$py.class
@@ -26,48 +31,23 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual environment
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE
+# 환경 및 IDE
+.DS_Store
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-logs/*.log
+# 데이터 파일 (민감 정보 포함 가능성)
+data/
+logs/
 *.log
 
-# Temporary files
-temp/*
-!temp/.gitkeep
+# 임시 파일
+temp/
+tmp/
+*.tmp
 
-# Playwright browser data
-.playwright/
-
-# Test coverage
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
+# OS 생성 파일
+Thumbs.db
