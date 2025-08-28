@@ -1,5 +1,5 @@
 from config import load_accounts
-from modules.collect import google_trends, news_api
+from modules.collect import google_trends, news_api, rss, reddit
 # from modules.collect.news_api import fetch_top_headlines, fetch_news_by_keywords, NewsCategory
 from modules.storage import spreadsheet
 from modules.ai import content_writer, post_writer
@@ -21,10 +21,17 @@ def main():
         
         # news_list = news_api.fetch_news(keywords)
         # news_list = news_api.fetch_top_headlines(category=NewsCategory.BUSINESS)
-        news_list = news_api.fetch_news_by_keywords(keywords=set_name)
+        # news_list = news_api.fetch_news_by_keywords(keywords=set_name)
+        
+        # rss_news = rss.fetch_news_by_rss()
+        # pprint.pprint(rss_news)
+        
+        # subreddits = ['WallStreetBets',  'FinancialCareers', 'CryptoCurrency', 'Economics', 'personalfinance', 'FirstTimeHomeBuyer']
+        
+        reddit_posts = reddit.fetch_reddit_posts(subreddits=account_set['subreddits'])
 
         # 2. 스프레드 시트 저장
-        spreadsheet.save_news(news_list)
+        spreadsheet.save_news(reddit_posts)
         quit()
 
         # 3. 뉴스 선정 및 글 작성

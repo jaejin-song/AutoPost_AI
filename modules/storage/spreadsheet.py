@@ -1,6 +1,8 @@
+from typing import List
 import gspread
 from config import load_env
 from datetime import datetime
+from modules.models.article import Article
 
 ENV = load_env()
 GOOGLE_SHEET_KEY = ENV.get("GOOGLE_SHEET_KEY")
@@ -31,7 +33,7 @@ def _get_worksheet():
     return worksheet
 
 
-def save_news(news_list):
+def save_news(news_list: List[Article]):
     """
     dict 타입 뉴스 리스트를 스프레드시트에 저장
     :param news_list: [{'title':..., 'url':..., 'content':..., 'publishedAt':...}, ...]
@@ -50,11 +52,11 @@ def save_news(news_list):
     rows = []
     for news in news_list:
         rows.append([
-            news.get("title", ""),
-            news.get("url", ""),
-            news.get("content", ""),
-            news.get("publishedAt", ""),
-            saved_at
+            news.title,
+            news.content,
+            news.url,
+            news.source,
+            news.subject
         ])
 
     # 한 번에 여러 행 추가

@@ -1,6 +1,7 @@
 import requests
 from config import load_env
 from datetime import datetime, timedelta
+from modules.models.article import Article
 
 # 환경 변수 로드
 ENV = load_env()
@@ -35,18 +36,19 @@ def get_yesterday_str():
     return yesterday.strftime("%Y-%m-%d")
 
 
-def _extract_fields(articles):
+def _extract_fields(articles, keywords:str):
     """
     NewsAPI articles에서 필요한 필드만 추출
     """
     result = []
     for a in articles:
-        result.append({
-            "title": a.get("title"),
-            "url": a.get("url"),
-            "content": a.get("content"),
-            "publishedAt": a.get("publishedAt")
-        })
+        result.append(Article(
+            title=a.get("title"),
+            content=a.get("content"),
+            url=a.get("url"),
+            source="news_api",
+            subject=keywords
+        ))
     return result
 
 
@@ -76,58 +78,58 @@ def fetch_news_by_keywords(keywords, count=100, language="en"):
 
     articles = data.get("articles", [])
     print(f"[NewsAPI] 키워드 {keywords} 관련 뉴스 {len(articles)}개 수집 완료")
-    return _extract_fields(articles)
+    return _extract_fields(articles, keywords)
 
 
-def fetch_latest_news(count=5, language="ko"):
-    """
-    최신 뉴스 가져오기 (키워드 X, publishedAt 기준)
-    """
-    if not NEWS_API_KEY:
-        raise ValueError("❌ NEWS_API_KEY가 설정되지 않았습니다 (.env 확인 필요)")
+# def fetch_latest_news(count=5, language="ko"):
+#     """
+#     최신 뉴스 가져오기 (키워드 X, publishedAt 기준)
+#     """
+#     if not NEWS_API_KEY:
+#         raise ValueError("❌ NEWS_API_KEY가 설정되지 않았습니다 (.env 확인 필요)")
 
-    params = {
-        "language": language,
-        "pageSize": count,
-        "sortBy": "publishedAt",
-        "apiKey": NEWS_API_KEY,
-    }
+#     params = {
+#         "language": language,
+#         "pageSize": count,
+#         "sortBy": "publishedAt",
+#         "apiKey": NEWS_API_KEY,
+#     }
 
-    resp = requests.get(f"{BASE_URL}/everything", params=params)
-    data = resp.json()
+#     resp = requests.get(f"{BASE_URL}/everything", params=params)
+#     data = resp.json()
 
-    if resp.status_code != 200:
-        print(f"[NewsAPI] 오류 발생: {data}")
-        return []
+#     if resp.status_code != 200:
+#         print(f"[NewsAPI] 오류 발생: {data}")
+#         return []
 
-    articles = data.get("articles", [])
-    print(f"[NewsAPI] 최신 뉴스 {len(articles)}개 수집 완료")
-    return _extract_fields(articles)
+#     articles = data.get("articles", [])
+#     print(f"[NewsAPI] 최신 뉴스 {len(articles)}개 수집 완료")
+#     return _extract_fields(articles)
 
 
-def fetch_top_headlines(count=100, country="us", category=None):
-    """
-    많이 본 뉴스 / 주요 헤드라인 (국가별)
-    """
-    if not NEWS_API_KEY:
-        raise ValueError("❌ NEWS_API_KEY가 설정되지 않았습니다 (.env 확인 필요)")
+# def fetch_top_headlines(count=100, country="us", category=None):
+#     """
+#     많이 본 뉴스 / 주요 헤드라인 (국가별)
+#     """
+#     if not NEWS_API_KEY:
+#         raise ValueError("❌ NEWS_API_KEY가 설정되지 않았습니다 (.env 확인 필요)")
 
-    params = {
-        "country": country,
-        "pageSize": count,
-        "apiKey": NEWS_API_KEY,
-    }
+#     params = {
+#         "country": country,
+#         "pageSize": count,
+#         "apiKey": NEWS_API_KEY,
+#     }
     
-    if category:
-        params["category"] = category
+#     if category:
+#         params["category"] = category
 
-    resp = requests.get(f"{BASE_URL}/top-headlines", params=params)
-    data = resp.json()
+#     resp = requests.get(f"{BASE_URL}/top-headlines", params=params)
+#     data = resp.json()
 
-    if resp.status_code != 200:
-        print(f"[NewsAPI] 오류 발생: {data}")
-        return []
+#     if resp.status_code != 200:
+#         print(f"[NewsAPI] 오류 발생: {data}")
+#         return []
 
-    articles = data.get("articles", [])
-    print(f"[NewsAPI] {country.upper()} 주요 헤드라인 {len(articles)}개 수집 완료")
-    return _extract_fields(articles)
+#     articles = data.get("articles", [])
+#     print(f"[NewsAPI] {country.upper()} 주요 헤드라인 {len(articles)}개 수집 완료")
+#     return _extract_fields(articles)
