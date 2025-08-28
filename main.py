@@ -26,17 +26,19 @@ def main():
         # rss_news = rss.fetch_news_by_rss()
         # pprint.pprint(rss_news)
         
-        # subreddits = ['WallStreetBets',  'FinancialCareers', 'CryptoCurrency', 'Economics', 'personalfinance', 'FirstTimeHomeBuyer']
-        
-        reddit_posts = reddit.fetch_reddit_posts(subreddits=account_set['subreddits'])
+        # reddit_posts = reddit.fetch_reddit_posts(subreddits=account_set['subreddits'])
 
         # 2. 스프레드 시트 저장
-        spreadsheet.save_news(reddit_posts)
+        # spreadsheet.save_news(reddit_posts)
+        
+        # 3. 글 작성
+        blog_post = content_writer.generate_blog_post(set_name)
+        pprint.pprint(blog_post)
         quit()
 
         # 3. 뉴스 선정 및 글 작성
         for news in news_list:
-            blog_post = content_writer.generate_blog_post(news)
+            blog_post = content_writer.generate_blog_post(set_name)
             sns_posts = post_writer.generate_sns_posts(blog_post)
 
             # 4. 계정 세트별 업로드
