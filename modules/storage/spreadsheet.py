@@ -9,7 +9,7 @@ GOOGLE_SHEET_KEY = ENV.get("GOOGLE_SHEET_KEY")
 SERVICE_ACCOUNT_FILE = ENV.get("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json")  # 기본값 root/service_account.json
 
 
-def _get_worksheet():
+def _get_worksheet(set_name: str):
     """
     스프레드시트 연결 후 워크시트 객체 반환
     """
@@ -24,16 +24,16 @@ def _get_worksheet():
     client = gspread.authorize(creds)
     sheet = client.open_by_key(GOOGLE_SHEET_KEY)
 
-    # 워크시트 이름: '뉴스'로 가정, 없으면 새로 생성
+    # 워크시트 이름: set_name, 없으면 새로 생성
     try:
-        worksheet = sheet.worksheet("뉴스")
+        worksheet = sheet.worksheet(set_name)
     except gspread.exceptions.WorksheetNotFound:
-        worksheet = sheet.add_worksheet(title="뉴스", rows="1000", cols="20")
+        worksheet = sheet.add_worksheet(title=set_name, rows="1000", cols="20")
 
     return worksheet
 
 
-def save_news(news_list: List[Article]):
+def save_news(set_name: str, news_list: List[Article]):
     """
     dict 타입 뉴스 리스트를 스프레드시트에 저장
     :param news_list: [{'title':..., 'url':..., 'content':..., 'publishedAt':...}, ...]
@@ -41,11 +41,11 @@ def save_news(news_list: List[Article]):
     if not GOOGLE_SHEET_KEY:
         raise ValueError("❌ GOOGLE_SHEET_KEY가 설정되지 않았습니다 (.env 확인 필요)")
 
-    worksheet = _get_worksheet()
+    worksheet = _get_worksheet(set_name=set_name)
 
     # 스프레드시트에 헤더가 없으면 추가
-    if worksheet.row_count == 0:
-        worksheet.append_row(["title", "url", "content", "publishedAt", "savedAt"])
+    if worksheet.row_count == 0 or not worksheet.cell(1, 1).value:
+        worksheet.append_row(["title", "content", "url", "source", "subject", "used"])
 
     saved_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

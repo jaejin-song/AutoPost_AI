@@ -18,12 +18,12 @@ def fetch_reddit_posts(subreddits: List[str]):
     reddit_posts: List[Article] = []
     
     for subreddit in subreddits:
-        # for submission in reddit.subreddit("WallStreetBets").hot(limit=100):
-        for submission in reddit.subreddit(subreddit).hot(limit=5):
+        for submission in reddit.subreddit("WallStreetBets").hot(limit=100):
+        # for submission in reddit.subreddit(subreddit).hot(limit=5):
             title = submission.title              # 글 제목
             content = submission.selftext         # 글 본문 (텍스트)
             url = submission.url                  # 외부 링크가 있으면 URL
-            if content:
+            if content and len(content) >= 1000:
                 reddit_posts.append(Article(
                         title=title,
                         content=content,

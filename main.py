@@ -8,6 +8,8 @@ from modules.utils import logger
 
 import pprint
 
+from modules.utils.helpers import save_posts_to_file
+
 def main():
     logger.log("🚀 AutoPost AI 시작")
 
@@ -29,11 +31,11 @@ def main():
         # reddit_posts = reddit.fetch_reddit_posts(subreddits=account_set['subreddits'])
 
         # 2. 스프레드 시트 저장
-        # spreadsheet.save_news(reddit_posts)
-        
+        # spreadsheet.save_news(set_name, reddit_posts)
+
         # 3. 글 작성
-        blog_post = content_writer.generate_blog_post(set_name)
-        pprint.pprint(blog_post)
+        blog_post = content_writer.generate_blog_post(set_name, max_posts=4)
+        save_posts_to_file(blog_post)
         quit()
 
         # 3. 뉴스 선정 및 글 작성

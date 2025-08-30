@@ -4,9 +4,11 @@ import ollama
 from dataclasses import dataclass
 import random
 import re
+import json
 from modules.storage.spreadsheet import _get_worksheet
 from modules.utils import logger
 from config import load_accounts
+from pydantic import BaseModel
 
 @dataclass
 class Post:
@@ -15,13 +17,23 @@ class Post:
     category: str
     tag: List[str]
     upload_hour: int # 예약 시간
+    
+class Topics(BaseModel):
+    selected_numbers: List[int]
+    
+class BlogContent(BaseModel):
+    title: str
+    content: str
+    category: str
+    tags: List[str]
 
-model = 'gemma3:4b'
+write_model = 'gemma3:4b'
+select_model = 'gemma3:1b' # test
 
-def get_topics_from_spreadsheet() -> List[Dict]:
+def get_topics_from_spreadsheet(set_name: str) -> List[Dict]:
     """스프레드시트에서 사용되지 않은 주제 목록 가져오기"""
     try:
-        worksheet = _get_worksheet()
+        worksheet = _get_worksheet(set_name=set_name)
         records = worksheet.get_all_records()
         
         # 아직 사용되지 않은 뉴스들만 필터링 (used 컬럼이 없거나 빈 값)
@@ -77,37 +89,89 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
 3. 블로그 글로 작성하기 적합한 내용
 4. 시의성과 유용성
 
-결과는 번호만 콤마로 구분해서 답해주세요. (예: 1,5,12,23,45)
+⚠️ 주의사항:
+- 반드시 정확히 {count}개의 주제 번호만 선택해야 합니다.
+- {count}개보다 많거나 적게 선택하지 마세요.
+
+반드시 아래 형식에 맞는 JSON만 반환하세요.  
+추가적인 설명, 코드 블록, 텍스트는 절대 포함하지 마세요.  
+
+반환 형식:
+{{
+  "selected_numbers": [정수 배열 (길이는 반드시 {count})],
+  "reasoning": "간단한 설명 문자열"
+}}
+
+지금 바로 JSON만 출력하세요.
 """
     
     try:
-        response = ollama.chat(
-            model=model,
-            messages=[{
-                'role': 'system',
-                'content': f'당신은 {account_topic} 전문 콘텐츠 큐레이터입니다.'
-            }, {
-                'role': 'user',
-                'content': prompt
-            }],
+        system_prompt = f'당신은 {account_topic} 전문 콘텐츠 큐레이터입니다.\n\n{prompt}'
+        response = ollama.generate(
+            model=select_model,
+            prompt=system_prompt,
             options={
-                'temperature': 0.3,
+                'temperature': 0,
                 'top_p': 0.8,
                 'num_ctx': 4096
-            }
+            },
+            format=Topics.model_json_schema(),
         )
         
-        # 선정된 번호 파싱
-        selected_numbers = re.findall(r'\d+', response.message.content)
-        selected_topics = []
+        # print(response['response'])
+        # raw = response['response']
+        # temp = json.loads(raw)
+        # number_test = temp.get('selected_numbers')
+        # print('number_test', number_test)
         
-        for num_str in selected_numbers[:count]:
-            try:
-                index = int(num_str) - 1
-                if 0 <= index < len(topics):
-                    selected_topics.append(topics[index])
-            except (ValueError, IndexError):
-                continue
+        # quit()
+        
+        # JSON 응답 파싱
+        selected_topics = []
+        raw_response = response['response']
+        
+        # 디버깅을 위한 응답 로깅
+        logger.log(f"AI 응답 길이: {len(raw_response)} 문자")
+        
+        # 빈 응답 처리
+        if not raw_response or not raw_response.strip():
+            logger.log("AI에서 빈 응답을 받았습니다")
+            return random.sample(topics, min(count, len(topics)))
+        
+        try:
+            # JSON 추출 및 파싱
+            json_data = json.loads(raw_response)
+            if json_data:
+                selected_numbers = json_data.get('selected_numbers', [])
+                
+                logger.log(f"JSON 파싱 성공: {selected_numbers}")
+                
+                for num in selected_numbers[:count]:
+                    try:
+                        index = int(num) - 1
+                        if 0 <= index < len(topics):
+                            selected_topics.append(topics[index])
+                    except (ValueError, IndexError):
+                        logger.log(f"잘못된 인덱스: {num}")
+                        continue
+            else:
+                raise json.JSONDecodeError("JSON 추출 실패", "", 0)
+                
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            logger.log(f"JSON 파싱 실패: {str(e)}")
+            logger.log("기존 regex 방식으로 fallback")
+            
+            # 기존 regex 방식으로 fallback
+            selected_numbers = re.findall(r'\d+', raw_response)
+            logger.log(f"Regex로 추출된 번호들: {selected_numbers}")
+            
+            for num_str in selected_numbers[:count]:
+                try:
+                    index = int(num_str) - 1
+                    if 0 <= index < len(topics):
+                        selected_topics.append(topics[index])
+                except (ValueError, IndexError):
+                    continue
         
         logger.log(f"AI가 {len(selected_topics)}개의 주제를 선정했습니다.")
         return selected_topics
@@ -117,71 +181,120 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
         # 오류 시 랜덤으로 선택
         return random.sample(topics, min(count, len(topics)))
 
-def generate_blog_content(topic: Dict, account_theme: str) -> Optional[Post]:
+def generate_blog_content(set_name:str, topic: Dict) -> Optional[Post]:
     """AI로 블로그 글 생성"""
     
-    theme_context = {
-        '마케팅': 'marketing and online business growth',
-        '관계': 'relationships and personal connections', 
-        '건강': 'health and wellness',
-        '금융': 'personal finance and money management'
-    }
-    
-    context = theme_context.get(account_theme, 'general interest')
+    # 계정 정보 로드
+    accounts = load_accounts()
+    account_info = accounts.get(set_name, {})
+    account_language = account_info.get('language', '한국어')
+    account_context = account_info.get('context', '')
+    account_category = account_info.get('category', [])
     
     prompt = f"""
 다음 뉴스를 바탕으로 블로그 글을 작성해주세요:
 
 제목: {topic['title']}
-내용: {topic['content'][:500]}...
+내용: {topic['content']}...
 출처: {topic['source']}
 주제: {topic['subject']}
 
-요구사항:
-1. 주제: {context} 관련 관점에서 작성
-2. 구조: 제목 → 서론 → 본론(2-3개 섹션) → 결론 → CTA
-3. 길이: 1000-1500 단어
-4. SEO 최적화: 키워드 자연스럽게 포함
-5. 톤: 전문적이면서도 읽기 쉽게
-6. CTA: 독자 참여 유도 및 다른 글 읽기 권유
-7. 글은 HTML로 작성
+당신은 {account_context} 주제의 티스토리 블로그 마케팅 및 SEO 전문가이지만, 동시에 **실제 블로거처럼 자연스럽게 글을 쓰는 사람**입니다.  
+내가 전달하는 자료(뉴스 기사, 커뮤니티 글, 이슈 내용 등)를 기반으로  
+티스토리 블로그에 바로 게시할 수 있는 완성된 글을 작성하세요.  
 
-추가 지침:
-- 단순 뉴스 요약이 아닌 해설과 의견 포함
-- 독자에게 질문을 던져 생각해볼 거리 제공
-- 실용적인 팁이나 조언 포함
-- 중복 표현 피하고 다양한 어휘 사용
+[작성 규칙]
+1. 글자 수는 공백 제외 **3,000~4,000자**로 작성하세요.  
+   - 글자 수를 채우기 위해 불필요하게 같은 말을 반복하지 말고,  
+     실제 블로거가 글을 채우듯 구체적인 설명, 예시, 맥락을 추가하세요.  
 
-한국어로 작성해주세요.
+2. 글은 **SEO 최적화**를 고려하되, 키워드를 억지로 넣지 말고  
+   **사람이 읽기에 자연스럽게** 본문에 녹여 쓰세요.  
+   - 주제와 관련된 주요 키워드를 분석하고, 자연스럽게 본문에 여러 번 포함하세요.  
+   - 제목(h1), 소제목(h2, h3), 도입부, 결론에는 핵심 키워드를 포함하세요.  
+   - 제목은 사람들의 흥미를 이끌어낼 수 있는 제목을 정해주세요.
+
+3. 글 구조:
+   - **메인 제목 (h1)**
+   - **150자 내외의 메타 설명 문단 (본문에 그대로 포함)**
+   - **도입부, 본문, 결론**은 h2, h3 소제목을 활용해 자연스럽게 구성
+   - 글 안에 "메타 설명:", "도입부:", "결론:" 같은 구조 안내 문구는 절대 넣지 마세요.  
+
+4. 글쓰기 스타일  
+   - 전문적이지만 블로그 독자가 쉽게 읽을 수 있는 **자연스러운 어투**  
+   - 필요 시 **목록, 번호, 굵은 글씨** 활용  
+   - **[블로거 이름]**, **[사이트 링크]** 같은 수정이 필요한 placeholder는 절대 사용하지 마세요.  
+   - 블로그에 그대로 붙여넣어도 수정 없이 게시 가능해야 합니다.  
+
+5. 출력 형식  
+   - 반드시 JSON만 반환  
+   - 결과물은 블로그에 그대로 붙여넣을 수 있는 최종 글이어야 함  
+   - 마크다운 형식(h1, h2, h3)으로 제목과 소제목을 구조화  
+
+반환 형식:
+{{
+  "title": "블로그 글 제목",
+  "content": "마크다운 형식의 제목을 제외한 블로그 내용 전체",
+  "category": {account_category} 중에서 가장 적합한 단어 1가지,
+  "tags": 해당 글의 해시태그에 적합한 단어의 배열
+}}
+
+${account_language}로 작성해주세요.
 """
     
     try:
-        response = ollama.chat(
-            model=model,
-            messages=[{
-                'role': 'system', 
-                'content': f'당신은 {context} 전문 블로거입니다. 독자에게 가치 있는 인사이트를 제공하는 글을 작성합니다.'
-            }, {
-                'role': 'user',
-                'content': prompt
-            }],
+        system_prompt = f'당신은 {account_context} 전문 블로거입니다. 독자에게 가치 있는 인사이트를 제공하는 글을 작성합니다.\n\n{prompt}'
+        response = ollama.generate(
+            model=write_model,
+            prompt=system_prompt,
             options={
-                'temperature': 0.8,
+                'temperature': 0,
                 'top_p': 0.9,
                 'top_k': 40,
                 'repeat_penalty': 1.1,
                 'num_ctx': 4096
-            }
+            },
+            format=BlogContent.model_json_schema(),
         )
         
-        blog_content = response.message.content
+        # JSON 응답 파싱
+        raw_response = response['response']
         
-        # 제목 추출 (첫 번째 줄 또는 # 헤더)
-        lines = blog_content.strip().split('\n')
-        title = lines[0].replace('#', '').strip() if lines else topic['title']
+        # 디버깅을 위한 응답 로깅
+        # logger.log(f"AI 블로그 응답 길이: {len(raw_response)} 문자")
         
-        # 태그 생성
-        tags = generate_tags(title + " " + blog_content[:200], account_theme)
+        # 빈 응답 처리
+        if not raw_response or not raw_response.strip():
+            logger.log("AI에서 븈 생성 실패 - 빈 응답")
+            return None
+            
+        try:
+            # JSON 추출 및 파싱
+            json_data = json.loads(raw_response)
+            if json_data:
+                title = json_data.get('title', topic['title'])
+                blog_content = json_data.get('content', '')
+                category = json_data.get('category', '')
+                tags = json_data.get('tags', [])
+                
+                # logger.log(f"JSON 파싱 성공 - 제목: {title}")
+                # logger.log(f"JSON 파싱 성공 - 내용 길이: {len(blog_content)}")
+                # logger.log(f"JSON 파싱 성공 - 카테고리: {category}")
+                # logger.log(f"JSON 파싱 성공 - 키워드: {tags}")
+                
+            else:
+                raise json.JSONDecodeError("JSON 추출 실패", "", 0)
+                
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            logger.log(f"JSON 파싱 실패: {str(e)}")
+            logger.log("기존 방식으로 fallback 처리")
+            
+            # 기존 방식으로 fallback
+            blog_content = raw_response
+            lines = blog_content.strip().split('\n')
+            title = lines[0].replace('#', '').strip() if lines else topic['title']
+            
+            logger.log(f"Fallback 처리 - 제목: {title}")
         
         # 업로드 시간 랜덤 설정 (9-18시)
         upload_hour = random.randint(9, 18)
@@ -189,45 +302,19 @@ def generate_blog_content(topic: Dict, account_theme: str) -> Optional[Post]:
         return Post(
             title=title,
             content=blog_content,
-            category=account_theme,
+            category=category,
             tag=tags,
             upload_hour=upload_hour
         )
         
     except Exception as e:
         logger.log(f"블로그 글 생성 중 오류 발생: {e}")
-        return None
-
-def generate_tags(content: str, theme: str) -> List[str]:
-    """콘텐츠에서 관련 태그 생성"""
-    
-    theme_tags = {
-        '마케팅': ['마케팅', '온라인비즈니스', 'SNS마케팅', '디지털마케팅', '브랜딩'],
-        '관계': ['관계', '연애', '인간관계', '소통', '사랑'],
-        '건강': ['건강', '웰빙', '운동', '영양', '라이프스타일'],
-        '금융': ['재테크', '투자', '저축', '부동산', '경제']
-    }
-    
-    base_tags = theme_tags.get(theme, ['일반', '정보', '팁'])
-    
-    # 간단한 키워드 추출 (실제로는 더 정교한 방법 사용 가능)
-    keywords = re.findall(r'[가-힣]{2,4}', content)
-    keyword_freq = {}
-    for word in keywords:
-        keyword_freq[word] = keyword_freq.get(word, 0) + 1
-    
-    # 빈도순으로 정렬하여 상위 키워드 추출
-    top_keywords = sorted(keyword_freq.items(), key=lambda x: x[1], reverse=True)[:3]
-    extracted_tags = [word for word, _ in top_keywords]
-    
-    # 기본 태그와 추출된 태그 결합
-    all_tags = base_tags + extracted_tags
-    return list(set(all_tags))[:7]  # 중복 제거 후 최대 7개
+        return None 
 
 def mark_topic_as_used(topic: Dict, set_name: str):
     """스프레드시트에서 해당 주제를 사용됨으로 표시"""
     try:
-        worksheet = _get_worksheet()
+        worksheet = _get_worksheet(set_name)
         row_index = topic['row_index']
         
         # used 컬럼에 계정 세트명과 사용일시 기록
@@ -250,11 +337,11 @@ def mark_topic_as_used(topic: Dict, set_name: str):
     except Exception as e:
         logger.log(f"주제 사용 표시 중 오류 발생: {e}")
 
-def generate_blog_post(set_name: str, max_posts: int = 5) -> List[Post]:
+def generate_blog_post(set_name: str, max_posts: int = 10) -> List[Post]:
     """계정 세트별로 블로그 글 생성"""
     
     # 스프레드시트에서 주제 목록 가져오기
-    topics = get_topics_from_spreadsheet()
+    topics = get_topics_from_spreadsheet(set_name=set_name)
     if not topics:
         logger.log("사용 가능한 주제가 없습니다.")
         return []
@@ -262,7 +349,6 @@ def generate_blog_post(set_name: str, max_posts: int = 5) -> List[Post]:
     # AI로 주제로 사용할 항목 선정
     accounts = load_accounts()
     account_info = accounts.get(set_name, {})
-    account_theme = account_info.get('topic', '일반')
     
     selected_topics = select_topics_with_ai(topics, set_name, max_posts)
     if not selected_topics:
@@ -274,7 +360,7 @@ def generate_blog_post(set_name: str, max_posts: int = 5) -> List[Post]:
     # AI로 글 생성
     for topic in selected_topics:
         try:
-            post = generate_blog_content(topic, account_theme)
+            post = generate_blog_content(set_name, topic)
             if post:
                 posts.append(post)
                 # 스프레드시트에 사용됨 표시
