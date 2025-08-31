@@ -33,18 +33,21 @@ def main():
         # 2. 스프레드 시트 저장
         # spreadsheet.save_news(set_name, reddit_posts)
 
-        # 3. 글 작성
-        blog_post = content_writer.generate_blog_post(set_name, max_posts=4)
-        save_posts_to_file(blog_post)
-        quit()
-
         # 3. 뉴스 선정 및 글 작성
-        for news in news_list:
-            blog_post = content_writer.generate_blog_post(set_name)
-            sns_posts = post_writer.generate_sns_posts(blog_post)
+        # blog_posts = content_writer.generate_blog_post(set_name, max_posts=3)
+        # save_posts_to_file(blog_post)
+        
+        # 4. 계정 세트별 업로드
+        dummy_post = content_writer.Post(
+            title="주식 시장 간단 브리핑",
+            content="오늘 코스피 지수는 소폭 상승 마감했습니다.",
+            category="주식",
+            tag=["코스피", "주식", "증시"],
+            upload_hour=9
+        )
+        blog_posts = [dummy_post]
 
-            # 4. 계정 세트별 업로드
-            runner.publish_all(account_set, blog_post, sns_posts)
+        runner.publish_all(account_set, blog_posts, sns_posts=[])
 
     logger.log("✅ AutoPost AI 완료")
 

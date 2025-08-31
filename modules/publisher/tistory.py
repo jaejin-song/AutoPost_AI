@@ -1,4 +1,10 @@
 # 티스토리 업로드
+from playwright.sync_api import Page, expect
 
-def publish(blog_post, account):
-    print(f"[Tistory:{account['username']}] 업로드 완료: {blog_post[:30]}...")
+def test_has_title(page: Page):
+    page.goto("https://playwright.dev/")
+
+def publish(blog_posts, account):
+    
+    
+    print("temp")
