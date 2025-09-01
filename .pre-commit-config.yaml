@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: requirements-txt-update
+        name: Update requirements.txt
+        entry: bash -c 'python3 -m pip freeze > requirements.txt && git add requirements.txt'
+        language: system
+        pass_filenames: false
+        always_run: true
