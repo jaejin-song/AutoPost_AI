@@ -5,8 +5,18 @@ import pytz
 import random
 from modules.ai.content_writer import Post
 
+def category_to_number(category: str, set_name: str) -> int:
+    """카테고리 이름을 WordPress 카테고리 ID로 변환"""
+    from config import load_accounts
+    
+    accounts = load_accounts()
+    account_set = accounts.get(set_name, {})
+    category_map = account_set.get('wordpress_categories', {})
+    
+    return category_map.get(category, list(category_map.values())[0] if category_map else 100532)
 
-def publish(blog_posts: List[Post], account):
+
+def publish(blog_posts: List[Post], account, set_name: str):
     """WordPress.com REST API를 사용해 블로그 포스트 발행"""
     SITE_ID = account['SITE_ID']
     OAUTH2_TOKEN = account['OAUTH2_TOKEN']
@@ -29,8 +39,7 @@ def publish(blog_posts: List[Post], account):
             "content": post.content,
             "status": "future",
             "date": future_time_str,
-            # "categories": [post.category],
-            # "tags": post.tag
+            "categories": [category_to_number(post.category, set_name)],
         }
         
         # OAuth2 토큰을 사용한 API 요청

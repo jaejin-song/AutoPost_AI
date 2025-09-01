@@ -3,10 +3,12 @@ from typing import List
 from datetime import datetime
 import os
 
+from modules.ai.content_writer import Post
+
 def clean_text(text: str) -> str:
     return text.strip()
 
-def save_posts_to_file(posts: List, filename: str = None) -> str:
+def save_posts_to_file(posts: List[Post], filename: str = None) -> str:
     """Post 리스트를 텍스트 파일로 저장 (테스트용)"""
     
     if not posts:

@@ -1,10 +1,12 @@
 # 블로그 글 작성
+import pprint
 from typing import List, Dict, Optional
-import ollama
+import anthropic
 from dataclasses import dataclass
 import random
 import re
 import json
+import os
 from modules.storage.spreadsheet import _get_worksheet
 from modules.utils import logger
 from config import load_accounts
@@ -27,8 +29,11 @@ class BlogContent(BaseModel):
     category: str
     tags: List[str]
 
-write_model = 'gemma3:4b'
-select_model = 'gemma3:1b' # test
+# Claude API 클라이언트 초기화
+client = anthropic.Anthropic(
+    api_key=os.getenv('ANTHROPIC_API_KEY')
+)
+ANTHROPIC_MODEL="claude-sonnet-4-20250514"
 
 def get_topics_from_spreadsheet(set_name: str) -> List[Dict]:
     """스프레드시트에서 사용되지 않은 주제 목록 가져오기"""
@@ -90,6 +95,7 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
 4. 시의성과 유용성
 
 ⚠️ 주의사항:
+- 유사한 주제는 중복해서 선택하지 말고 하나만 선택하세요.
 - 반드시 정확히 {count}개의 주제 번호만 선택해야 합니다.
 - {count}개보다 많거나 적게 선택하지 마세요.
 
@@ -106,16 +112,19 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
 """
     
     try:
-        system_prompt = f'당신은 {account_topic} 전문 콘텐츠 큐레이터입니다.\n\n{prompt}'
-        response = ollama.generate(
-            model=select_model,
-            prompt=system_prompt,
-            options={
-                'temperature': 0,
-                'top_p': 0.8,
-                'num_ctx': 4096
-            },
-            format=Topics.model_json_schema(),
+        system_prompt = f'당신은 {account_topic} 전문 콘텐츠 큐레이터입니다.'
+        
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=1024,
+            temperature=0,
+            system=system_prompt,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
         )
         
         # print(response['response'])
@@ -128,7 +137,7 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
         
         # JSON 응답 파싱
         selected_topics = []
-        raw_response = response['response']
+        raw_response = response.content[0].text
         
         # 디버깅을 위한 응답 로깅
         logger.log(f"AI 응답 길이: {len(raw_response)} 문자")
@@ -139,8 +148,16 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
             return random.sample(topics, min(count, len(topics)))
         
         try:
+            # JSON 코드 블록 마커 제거
+            cleaned_response = raw_response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]  # '```json' 제거
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]  # '```' 제거
+            cleaned_response = cleaned_response.strip()
+            
             # JSON 추출 및 파싱
-            json_data = json.loads(raw_response)
+            json_data = json.loads(cleaned_response)
             if json_data:
                 selected_numbers = json_data.get('selected_numbers', [])
                 
@@ -187,78 +204,60 @@ def generate_blog_content(set_name:str, topic: Dict) -> Optional[Post]:
     # 계정 정보 로드
     accounts = load_accounts()
     account_info = accounts.get(set_name, {})
+    account_topic = accounts.get('topic')
     account_language = account_info.get('language', '한국어')
     account_context = account_info.get('context', '')
     account_category = account_info.get('category', [])
     
     prompt = f"""
-다음 뉴스를 바탕으로 블로그 글을 작성해주세요:
+너는 블로그 전문 작가이자 SEO 최적화 전문가야.  
+아래에 제공된 정보를 바탕으로 블로그용 글을 작성해줘.  
 
+입력 데이터:
 제목: {topic['title']}
-내용: {topic['content']}...
+내용: {topic['content']}
 출처: {topic['source']}
-주제: {topic['subject']}
 
-당신은 {account_context} 주제의 티스토리 블로그 마케팅 및 SEO 전문가이지만, 동시에 **실제 블로거처럼 자연스럽게 글을 쓰는 사람**입니다.  
-내가 전달하는 자료(뉴스 기사, 커뮤니티 글, 이슈 내용 등)를 기반으로  
-티스토리 블로그에 바로 게시할 수 있는 완성된 글을 작성하세요.  
-
-[작성 규칙]
-1. 글자 수는 공백 제외 **3,000~4,000자**로 작성하세요.  
-   - 글자 수를 채우기 위해 불필요하게 같은 말을 반복하지 말고,  
-     실제 블로거가 글을 채우듯 구체적인 설명, 예시, 맥락을 추가하세요.  
-
-2. 글은 **SEO 최적화**를 고려하되, 키워드를 억지로 넣지 말고  
-   **사람이 읽기에 자연스럽게** 본문에 녹여 쓰세요.  
-   - 주제와 관련된 주요 키워드를 분석하고, 자연스럽게 본문에 여러 번 포함하세요.  
-   - 제목(h1), 소제목(h2, h3), 도입부, 결론에는 핵심 키워드를 포함하세요.  
-   - 제목은 사람들의 흥미를 이끌어낼 수 있는 제목을 정해주세요.
-
-3. 글 구조:
-   - **메인 제목 (h1)**
-   - **150자 내외의 메타 설명 문단 (본문에 그대로 포함)**
-   - **도입부, 본문, 결론**은 h2, h3 소제목을 활용해 자연스럽게 구성
-   - 글 안에 "메타 설명:", "도입부:", "결론:" 같은 구조 안내 문구는 절대 넣지 마세요.  
-
-4. 글쓰기 스타일  
-   - 전문적이지만 블로그 독자가 쉽게 읽을 수 있는 **자연스러운 어투**  
-   - 필요 시 **목록, 번호, 굵은 글씨** 활용  
-   - **[블로거 이름]**, **[사이트 링크]** 같은 수정이 필요한 placeholder는 절대 사용하지 마세요.  
-   - 블로그에 그대로 붙여넣어도 수정 없이 게시 가능해야 합니다.  
-
-5. 출력 형식  
-   - 반드시 JSON만 반환  
-   - 결과물은 블로그에 그대로 붙여넣을 수 있는 최종 글이어야 함  
-   - 마크다운 형식(h1, h2, h3)으로 제목과 소제목을 구조화  
-
-반환 형식:
+요구 사항:
+1. 최종 출력은 JSON 형식으로 제공해.
+2. JSON 구조는 아래와 같아:
 {{
   "title": "블로그 글 제목",
-  "content": "마크다운 형식의 제목을 제외한 블로그 내용 전체",
+  "content": "HTML 형식의 본문 전체 (h3, h4, p, strong, ul/li, a 태그 등을 적절히 활용)",
   "category": {account_category} 중에서 가장 적합한 단어 1가지,
   "tags": 해당 글의 해시태그에 적합한 단어의 배열
 }}
+3. "content"는 반드시 3000~4000자 사이의 분량으로 작성해.
+4. 글의 톤은 사람이 쓴 것처럼 자연스럽게 작성하고, 지나치게 기계적이거나 번역투처럼 보이지 않게 해.
+5. SEO 최적화를 고려해서 제목 및 본문에 핵심 키워드를 적절히 포함하되, 남용하지 말고 문맥에 자연스럽게 녹여라.
+6. 본문은 HTML 태그를 활용해 구성하되, **h3/h4 소제목**, **굵은 글씨(strong)**, **목록(ul/li)**, **링크(a)** 등을 적절히 배치해 가독성과 검색 최적화를 동시에 달성해라.
+7. 내용 속에는 실제 독자에게 도움이 될 만한 팁, 설명, 예시를 포함하고, 단순 요약이 아니라 풍부한 서술을 해라.
+8. 글의 마지막 부분에는 독자가 행동하도록 유도하는 문구(Call to Action)를 포함해라.
+9. "category"에는 {account_category} 중 가장 적합한 단어 하나만 선택해 넣어라.
+10. "tags"는 해당 글 주제와 관련된 검색 최적화에 유용한 키워드 5~8개 정도를 배열 형태로 작성해라.
+11. {account_language}로 작성해.
 
-${account_language}로 작성해주세요.
+출력은 반드시 JSON 형식만 출력해.
 """
     
     try:
-        system_prompt = f'당신은 {account_context} 전문 블로거입니다. 독자에게 가치 있는 인사이트를 제공하는 글을 작성합니다.\n\n{prompt}'
-        response = ollama.generate(
-            model=write_model,
-            prompt=system_prompt,
-            options={
-                'temperature': 0,
-                'top_p': 0.9,
-                'top_k': 40,
-                'repeat_penalty': 1.1,
-                'num_ctx': 4096
-            },
-            format=BlogContent.model_json_schema(),
+        system_prompt = f'당신은 {account_topic} 블로그를 운영하는 파워 블로거입니다.'
+        
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=4096,
+            temperature=0,
+            system=system_prompt,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
         )
         
         # JSON 응답 파싱
-        raw_response = response['response']
+        raw_response = response.content[0].text
         
         # 디버깅을 위한 응답 로깅
         # logger.log(f"AI 블로그 응답 길이: {len(raw_response)} 문자")
@@ -269,8 +268,16 @@ ${account_language}로 작성해주세요.
             return None
             
         try:
+            # JSON 코드 블록 마커 제거
+            cleaned_response = raw_response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]  # '```json' 제거
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]  # '```' 제거
+            cleaned_response = cleaned_response.strip()
+            
             # JSON 추출 및 파싱
-            json_data = json.loads(raw_response)
+            json_data = json.loads(cleaned_response)
             if json_data:
                 title = json_data.get('title', topic['title'])
                 blog_content = json_data.get('content', '')
@@ -293,6 +300,10 @@ ${account_language}로 작성해주세요.
             blog_content = raw_response
             lines = blog_content.strip().split('\n')
             title = lines[0].replace('#', '').strip() if lines else topic['title']
+            
+            # Temp
+            category = ''
+            tags = []
             
             logger.log(f"Fallback 처리 - 제목: {title}")
         

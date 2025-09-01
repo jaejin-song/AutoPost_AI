@@ -62,3 +62,21 @@ def save_news(set_name: str, news_list: List[Article]):
     # 한 번에 여러 행 추가
     worksheet.append_rows(rows)
     print(f"[Spreadsheet] 뉴스 {len(news_list)}개 저장 완료")
+
+def clear_worksheet(set_name: str):
+    """
+    스프레드시트 워크시트 초기화 (헤더만 남기고 모든 데이터 삭제)
+    """
+    worksheet = _get_worksheet(set_name=set_name)
+    
+    # 현재 데이터 개수 확인
+    all_records = worksheet.get_all_records()
+    if not all_records:
+        print(f"[Spreadsheet] {set_name} 워크시트가 이미 비어있습니다.")
+        return
+    
+    # 헤더만 남기고 모든 행 삭제
+    worksheet.clear()
+    worksheet.append_row(["title", "content", "url", "source", "subject", "used"])
+    
+    print(f"[Spreadsheet] {set_name} 워크시트 초기화 완료 ({len(all_records)}개 기록 삭제)")

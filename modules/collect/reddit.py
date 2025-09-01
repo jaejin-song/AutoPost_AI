@@ -18,8 +18,7 @@ def fetch_reddit_posts(subreddits: List[str]):
     reddit_posts: List[Article] = []
     
     for subreddit in subreddits:
-        for submission in reddit.subreddit("WallStreetBets").hot(limit=100):
-        # for submission in reddit.subreddit(subreddit).hot(limit=5):
+        for submission in reddit.subreddit(subreddit).top(time_filter="day", limit=50):
             title = submission.title              # 글 제목
             content = submission.selftext         # 글 본문 (텍스트)
             url = submission.url                  # 외부 링크가 있으면 URL
