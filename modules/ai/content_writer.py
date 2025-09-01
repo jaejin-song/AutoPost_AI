@@ -18,7 +18,6 @@ class Post:
     content: str
     category: str
     tag: List[str]
-    upload_hour: int # 예약 시간
     
 class Topics(BaseModel):
     selected_numbers: List[int]
@@ -206,7 +205,6 @@ def generate_blog_content(set_name:str, topic: Dict) -> Optional[Post]:
     account_info = accounts.get(set_name, {})
     account_topic = accounts.get('topic')
     account_language = account_info.get('language', '한국어')
-    account_context = account_info.get('context', '')
     account_category = account_info.get('category', [])
     
     prompt = f"""
@@ -307,15 +305,11 @@ def generate_blog_content(set_name:str, topic: Dict) -> Optional[Post]:
             
             logger.log(f"Fallback 처리 - 제목: {title}")
         
-        # 업로드 시간 랜덤 설정 (9-18시)
-        upload_hour = random.randint(9, 18)
-        
         return Post(
             title=title,
             content=blog_content,
             category=category,
-            tag=tags,
-            upload_hour=upload_hour
+            tag=tags
         )
         
     except Exception as e:

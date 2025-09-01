@@ -37,7 +37,7 @@ def save_posts_to_file(posts: List[Post], filename: str = None) -> str:
                 f.write(f"제목: {post.title}\n")
                 f.write(f"카테고리: {post.category}\n")
                 f.write(f"태그: {', '.join(post.tag) if post.tag else '없음'}\n")
-                f.write(f"업로드 시간: {post.upload_hour}시\n")
+                f.write(f"생성 시간: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
                 f.write("-" * 40 + "\n")
                 f.write("내용:\n")
                 f.write(post.content)
