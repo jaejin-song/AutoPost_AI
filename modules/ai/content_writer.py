@@ -33,9 +33,15 @@ def get_topics_from_spreadsheet(set_name: str) -> List[Dict]:
         unused_topics = []
         for record in records:
             if not record.get('used', ''):  # used 컬럼이 비어있으면 미사용
+                # content는 최대 50글자까지만 가져오기
+                content = record.get('content', '')
+                max_length = 50
+                if len(content) > max_length:
+                    content = content[:max_length] + "..."
+                
                 unused_topics.append({
                     'title': record.get('title', ''),
-                    'content': record.get('content', ''),
+                    'content': content,
                     'url': record.get('url', ''),
                     'source': record.get('source', ''),
                     'subject': record.get('subject', ''),
@@ -62,7 +68,7 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
     
     # 주제 목록을 문자열로 변환
     topics_text = "\n".join([
-        f"{i+1}. {topic['title']} - {topic['subject']}" 
+        f"{i+1}. {topic['title']} - {topic['content']} - {topic['subject']}" 
         for i, topic in enumerate(topics[:50])  # 최대 50개까지만
     ])
     
