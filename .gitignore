@@ -51,3 +51,7 @@ tmp/
 
 # OS 생성 파일
 Thumbs.db
+
+# 로그 파일
+run.err
+run.log
