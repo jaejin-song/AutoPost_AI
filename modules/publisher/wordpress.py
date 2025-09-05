@@ -28,7 +28,7 @@ def publish(blog_posts: List[Post], account, set_name: str):
         # 한국 시간대 기준으로 예약 시간 계산 (내일 랜덤 시간)
         tz = pytz.timezone("Asia/Seoul")
         tomorrow = datetime.now(tz) + timedelta(days=1)
-        random_hour = random.randint(9, 21)  # 9시~21시 사이
+        random_hour = random.randint(0, 18)  # 0시~18시 사이
         random_minute = random.randint(0, 59)  # 0~59분 사이
         future_time = tomorrow.replace(hour=random_hour, minute=random_minute, second=0, microsecond=0)
         future_time_str = future_time.strftime("%Y-%m-%dT%H:%M:%S")
