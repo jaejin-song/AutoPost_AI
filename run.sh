@@ -27,8 +27,50 @@ if [ -f "requirements.txt" ]; then
     pip install -r requirements.txt --quiet
 fi
 
+# Ollama 서버 시작
+echo "🦙 Ollama 서버 시작 중..."
+if command -v ollama &> /dev/null; then
+    # Ollama가 이미 실행 중인지 확인
+    if ! pgrep -f "ollama serve" > /dev/null; then
+        echo "🔄 Ollama 서버를 백그라운드에서 시작합니다..."
+        ollama serve &
+        OLLAMA_PID=$!
+        
+        # Ollama 서버가 준비될 때까지 대기
+        echo "⏳ Ollama 서버 준비 대기 중..."
+        sleep 3
+        
+        # 서버 상태 확인
+        max_attempts=10
+        attempt=1
+        while [ $attempt -le $max_attempts ]; do
+            if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+                echo "✅ Ollama 서버가 준비되었습니다."
+                break
+            fi
+            echo "⏳ Ollama 서버 대기 중... (시도 $attempt/$max_attempts)"
+            sleep 2
+            attempt=$((attempt + 1))
+        done
+        
+        if [ $attempt -gt $max_attempts ]; then
+            echo "⚠️ Ollama 서버 시작에 시간이 걸리고 있습니다. 계속 진행합니다."
+        fi
+    else
+        echo "✅ Ollama 서버가 이미 실행 중입니다."
+    fi
+else
+    echo "⚠️ Ollama가 설치되지 않았습니다. Claude만 사용됩니다."
+fi
+
 # main.py 실행
 echo "▶️ AutoPost AI 실행..."
 python main.py
+
+# 정리 작업
+if [ ! -z "$OLLAMA_PID" ]; then
+    echo "🧹 Ollama 서버 종료 중..."
+    kill $OLLAMA_PID 2>/dev/null || true
+fi
 
 echo "✅ AutoPost AI 완료"
