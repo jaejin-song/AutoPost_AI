@@ -35,8 +35,7 @@ def get_default_prompt_template(topic: Dict, account_topic: str, account_languag
 """
 
 
-def get_life_tips_prompt_template(topic: Dict, account_topic: str, account_language: str, account_category: list) -> str:
-    """생활의빈틈 블로그 특화 프롬프트"""
+def get_ollama_prompt_template(topic: Dict, account_topic: str, account_language: str, account_category: list) -> str:
     return f"""
 아래에 제공된 레딧 글을 바탕으로 생활의 팁을 소개하는 글을 작성해줘.
 
@@ -49,10 +48,10 @@ def get_life_tips_prompt_template(topic: Dict, account_topic: str, account_langu
 1. 최종 출력은 JSON 형식으로 제공해.
 2. JSON 구조는 아래와 같아:
 {{
-  "title": "마케팅 실무진을 위한 제목 (클릭을 유도하는 형태)",
+  "title": "제목 (클릭을 유도하는 형태)",
   "content": "HTML 형식의 본문 전체 (h3, h4, p, strong, ul/li, a 태그 등을 적절히 활용)",
   "category": {account_category} 중에서 가장 적합한 단어 1가지,
-  "tags": 마케팅 실무진이 검색할 만한 키워드 배열
+  "tags": 해당 글의 해시태그에 적합한 단어의 배열
 }}
 3. 커뮤니티에서 본 내용을 소개한다 정도로 출처를 얘기하고 "레딧"이라는 단어는 사용하지 말아줘.
 4. 본문은 HTML 태그를 활용해 구성하되, **h3/h4 소제목**, **굵은 글씨(strong)**, **목록(ul/li)**, **링크(a)** 등을 적절히 배치해 가독성과 검색 최적화를 동시에 달성해라.
@@ -72,7 +71,12 @@ def get_prompt_template_for_set(set_name: str, topic: Dict, account_topic: str, 
         'default': get_default_prompt_template,
         'finance': get_default_prompt_template,
         'jtaek': get_default_prompt_template,
-        'life_tips': get_life_tips_prompt_template,
+        'life_tips': get_ollama_prompt_template,
+        'relationship': get_ollama_prompt_template,
+        'programming': get_ollama_prompt_template,
+        'tech': get_ollama_prompt_template,
+        'ai': get_ollama_prompt_template,
+        'fitness': get_ollama_prompt_template,
     }
     
     template_function = prompt_templates.get(set_name, get_default_prompt_template)
