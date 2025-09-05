@@ -20,7 +20,7 @@ def fetch_reddit_posts(subreddits: List[str]):
     for subreddit in subreddits:
         try:
             # top posts를 먼저 시도
-            top_posts = list(reddit.subreddit(subreddit).top(time_filter="day", limit=50))
+            top_posts = list(reddit.subreddit(subreddit).top(time_filter="day", limit=30))
             
             # top posts가 없으면 hot posts로 fallback
             if len(top_posts) == 0:

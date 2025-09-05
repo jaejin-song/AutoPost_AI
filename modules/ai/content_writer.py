@@ -68,8 +68,8 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
     
     # 주제 목록을 문자열로 변환
     topics_text = "\n".join([
-        f"{i+1}. {topic['title']} - {topic['content']} - {topic['subject']}" 
-        for i, topic in enumerate(topics[:50])  # 최대 50개까지만
+        f"{i+1}. {topic['title']} - {topic['subject']}" 
+        for i, topic in enumerate(topics)  # 최대 50개까지만
     ])
     
     prompt = f"""
