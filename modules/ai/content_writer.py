@@ -11,6 +11,7 @@ from modules.storage.spreadsheet import _get_worksheet
 from modules.utils import logger
 from config import load_accounts
 from pydantic import BaseModel
+from modules.ai.prompts import get_prompt_template_for_set
 
 @dataclass
 class Post:
@@ -111,7 +112,7 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
 """
     
     try:
-        system_prompt = f'당신은 {account_topic} 전문 콘텐츠 큐레이터입니다.'
+        system_prompt = f'당신은 {account_topic} 블로그를 운영하는 파워 블로거입니다.'
         
         response = client.messages.create(
             model=ANTHROPIC_MODEL,
@@ -197,49 +198,22 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
         # 오류 시 랜덤으로 선택
         return random.sample(topics, min(count, len(topics)))
 
+
 def generate_blog_content(set_name:str, topic: Dict) -> Optional[Post]:
     """AI로 블로그 글 생성"""
     
     # 계정 정보 로드
     accounts = load_accounts()
     account_info = accounts.get(set_name, {})
-    account_topic = accounts.get('topic')
+    account_topic = account_info.get('topic', '일반')
     account_language = account_info.get('language', '한국어')
     account_category = account_info.get('category', [])
     
-    prompt = f"""
-너는 블로그 전문 작가이자 SEO 최적화 전문가야.  
-아래에 제공된 정보를 바탕으로 블로그용 글을 작성해줘.  
-
-입력 데이터:
-제목: {topic['title']}
-내용: {topic['content']}
-출처: {topic['source']}
-
-요구 사항:
-1. 최종 출력은 JSON 형식으로 제공해.
-2. JSON 구조는 아래와 같아:
-{{
-  "title": "블로그 글 제목",
-  "content": "HTML 형식의 본문 전체 (h3, h4, p, strong, ul/li, a 태그 등을 적절히 활용)",
-  "category": {account_category} 중에서 가장 적합한 단어 1가지,
-  "tags": 해당 글의 해시태그에 적합한 단어의 배열
-}}
-3. "content"는 반드시 3000~4000자 사이의 분량으로 작성해.
-4. 글의 톤은 사람이 쓴 것처럼 자연스럽게 작성하고, 지나치게 기계적이거나 번역투처럼 보이지 않게 해.
-5. SEO 최적화를 고려해서 제목 및 본문에 핵심 키워드를 적절히 포함하되, 남용하지 말고 문맥에 자연스럽게 녹여라.
-6. 본문은 HTML 태그를 활용해 구성하되, **h3/h4 소제목**, **굵은 글씨(strong)**, **목록(ul/li)**, **링크(a)** 등을 적절히 배치해 가독성과 검색 최적화를 동시에 달성해라.
-7. 내용 속에는 실제 독자에게 도움이 될 만한 팁, 설명, 예시를 포함하고, 단순 요약이 아니라 풍부한 서술을 해라.
-8. 글의 마지막 부분에는 독자가 행동하도록 유도하는 문구(Call to Action)를 포함해라.
-9. "category"에는 {account_category} 중 가장 적합한 단어 하나만 선택해 넣어라.
-10. "tags"는 해당 글 주제와 관련된 검색 최적화에 유용한 키워드 5~8개 정도를 배열 형태로 작성해라.
-11. {account_language}로 작성해.
-
-출력은 반드시 JSON 형식만 출력해.
-"""
+    # 프롬프트 템플릿 선택 및 생성
+    prompt = get_prompt_template_for_set(set_name, topic, account_topic, account_language, account_category)
     
     try:
-        system_prompt = f'당신은 {account_topic} 블로그를 운영하는 파워 블로거입니다.'
+        system_prompt = f'당신은 {account_topic} 블로그를 운영하는 파워 블로거이자 SEO 최적화 전문가입니다.'
         
         response = client.messages.create(
             model=ANTHROPIC_MODEL,
