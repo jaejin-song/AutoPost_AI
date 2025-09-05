@@ -1,7 +1,6 @@
 # 블로그 글 작성
 import pprint
 from typing import List, Dict, Optional
-import anthropic
 from dataclasses import dataclass
 import random
 import re
@@ -12,6 +11,8 @@ from modules.utils import logger
 from config import load_accounts
 from pydantic import BaseModel
 from modules.ai.prompts import get_prompt_template_for_set
+from modules.ai.llm_providers import get_llm_provider
+from modules.ai.pydantic_models import TopicSelection, BlogContentResponse
 
 @dataclass
 class Post:
@@ -19,21 +20,8 @@ class Post:
     content: str
     category: str
     tag: List[str]
-    
-class Topics(BaseModel):
-    selected_numbers: List[int]
-    
-class BlogContent(BaseModel):
-    title: str
-    content: str
-    category: str
-    tags: List[str]
 
-# Claude API 클라이언트 초기화
-client = anthropic.Anthropic(
-    api_key=os.getenv('ANTHROPIC_API_KEY')
-)
-ANTHROPIC_MODEL="claude-sonnet-4-20250514"
+# LLM Provider는 함수 호출시 동적으로 생성
 
 def get_topics_from_spreadsheet(set_name: str) -> List[Dict]:
     """스프레드시트에서 사용되지 않은 주제 목록 가져오기"""
@@ -112,34 +100,32 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
 """
     
     try:
+        # LLM Provider 가져오기
+        llm_provider = get_llm_provider(set_name)
         system_prompt = f'당신은 {account_topic} 블로그를 운영하는 파워 블로거입니다.'
         
-        response = client.messages.create(
-            model=ANTHROPIC_MODEL,
+        messages = [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        
+        # Ollama인 경우 구조화된 출력 사용, Claude인 경우 기존 방식 유지
+        raw_response = llm_provider.generate(
+            messages=messages,
+            system_prompt=system_prompt,
             max_tokens=1024,
             temperature=0,
-            system=system_prompt,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+            format=TopicSelection  # Ollama에서 구조화된 출력 사용
         )
         
-        # print(response['response'])
-        # raw = response['response']
-        # temp = json.loads(raw)
-        # number_test = temp.get('selected_numbers')
-        # print('number_test', number_test)
+        if not raw_response:
+            logger.log("LLM에서 응답을 받지 못했습니다")
+            return random.sample(topics, min(count, len(topics)))
         
-        # quit()
-        
-        # JSON 응답 파싱
+        # 구조화된 응답 파싱
         selected_topics = []
-        raw_response = response.content[0].text
-        
-        # 디버깅을 위한 응답 로깅
         logger.log(f"AI 응답 길이: {len(raw_response)} 문자")
         
         # 빈 응답 처리
@@ -148,20 +134,12 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
             return random.sample(topics, min(count, len(topics)))
         
         try:
-            # JSON 코드 블록 마커 제거
-            cleaned_response = raw_response.strip()
-            if cleaned_response.startswith('```json'):
-                cleaned_response = cleaned_response[7:]  # '```json' 제거
-            if cleaned_response.endswith('```'):
-                cleaned_response = cleaned_response[:-3]  # '```' 제거
-            cleaned_response = cleaned_response.strip()
-            
-            # JSON 추출 및 파싱
-            json_data = json.loads(cleaned_response)
-            if json_data:
-                selected_numbers = json_data.get('selected_numbers', [])
-                
-                logger.log(f"JSON 파싱 성공: {selected_numbers}")
+            # Pydantic 모델로 파싱 시도 (구조화된 출력)
+            # Ollama에서 정확한 JSON이 나오면 이 방법 사용
+            try:
+                topic_selection = TopicSelection.model_validate_json(raw_response)
+                selected_numbers = topic_selection.selected_numbers
+                logger.log(f"구조화된 파싱 성공: {selected_numbers}")
                 
                 for num in selected_numbers[:count]:
                     try:
@@ -171,14 +149,41 @@ def select_topics_with_ai(topics: List[Dict], set_name: str, count: int = 10) ->
                     except (ValueError, IndexError):
                         logger.log(f"잘못된 인덱스: {num}")
                         continue
-            else:
-                raise json.JSONDecodeError("JSON 추출 실패", "", 0)
+                        
+            except Exception:
+                # 구조화된 파싱 실패시 기존 JSON 방식으로 fallback
+                logger.log("구조화된 파싱 실패, JSON 파싱으로 fallback")
+                
+                # JSON 코드 블록 마커 제거
+                cleaned_response = raw_response.strip()
+                if cleaned_response.startswith('```json'):
+                    cleaned_response = cleaned_response[7:]
+                if cleaned_response.endswith('```'):
+                    cleaned_response = cleaned_response[:-3]
+                cleaned_response = cleaned_response.strip()
+                
+                # JSON 추출 및 파싱
+                json_data = json.loads(cleaned_response)
+                if json_data:
+                    selected_numbers = json_data.get('selected_numbers', [])
+                    logger.log(f"JSON 파싱 성공: {selected_numbers}")
+                    
+                    for num in selected_numbers[:count]:
+                        try:
+                            index = int(num) - 1
+                            if 0 <= index < len(topics):
+                                selected_topics.append(topics[index])
+                        except (ValueError, IndexError):
+                            logger.log(f"잘못된 인덱스: {num}")
+                            continue
+                else:
+                    raise json.JSONDecodeError("JSON 추출 실패", "", 0)
                 
         except (json.JSONDecodeError, ValueError, TypeError) as e:
             logger.log(f"JSON 파싱 실패: {str(e)}")
-            logger.log("기존 regex 방식으로 fallback")
+            logger.log("Regex 방식으로 fallback")
             
-            # 기존 regex 방식으로 fallback
+            # 최후 수단으로 regex 방식
             selected_numbers = re.findall(r'\d+', raw_response)
             logger.log(f"Regex로 추출된 번호들: {selected_numbers}")
             
@@ -213,67 +218,81 @@ def generate_blog_content(set_name:str, topic: Dict) -> Optional[Post]:
     prompt = get_prompt_template_for_set(set_name, topic, account_topic, account_language, account_category)
     
     try:
+        # LLM Provider 가져오기
+        llm_provider = get_llm_provider(set_name)
         system_prompt = f'당신은 {account_topic} 블로그를 운영하는 파워 블로거이자 SEO 최적화 전문가입니다.'
         
-        response = client.messages.create(
-            model=ANTHROPIC_MODEL,
+        messages = [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        
+        # Ollama인 경우 구조화된 출력 사용, Claude인 경우 기존 방식 유지
+        raw_response = llm_provider.generate(
+            messages=messages,
+            system_prompt=system_prompt,
             max_tokens=4096,
             temperature=0,
-            system=system_prompt,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+            format=BlogContentResponse  # Ollama에서 구조화된 출력 사용
         )
         
-        # JSON 응답 파싱
-        raw_response = response.content[0].text
-        
-        # 디버깅을 위한 응답 로깅
-        # logger.log(f"AI 블로그 응답 길이: {len(raw_response)} 문자")
+        if not raw_response:
+            logger.log("LLM에서 응답을 받지 못했습니다")
+            return None
         
         # 빈 응답 처리
         if not raw_response or not raw_response.strip():
-            logger.log("AI에서 븈 생성 실패 - 빈 응답")
+            logger.log("AI에서 글 생성 실패 - 빈 응답")
             return None
             
         try:
-            # JSON 코드 블록 마커 제거
-            cleaned_response = raw_response.strip()
-            if cleaned_response.startswith('```json'):
-                cleaned_response = cleaned_response[7:]  # '```json' 제거
-            if cleaned_response.endswith('```'):
-                cleaned_response = cleaned_response[:-3]  # '```' 제거
-            cleaned_response = cleaned_response.strip()
-            
-            # JSON 추출 및 파싱
-            json_data = json.loads(cleaned_response)
-            if json_data:
-                title = json_data.get('title', topic['title'])
-                blog_content = json_data.get('content', '')
-                category = json_data.get('category', '')
-                tags = json_data.get('tags', [])
+            # Pydantic 모델로 파싱 시도 (구조화된 출력)
+            try:
+                blog_response = BlogContentResponse.model_validate_json(raw_response)
+                title = blog_response.title
+                blog_content = blog_response.content
+                category = blog_response.category or ''
+                tags = blog_response.tags or []
                 
-                # logger.log(f"JSON 파싱 성공 - 제목: {title}")
-                # logger.log(f"JSON 파싱 성공 - 내용 길이: {len(blog_content)}")
-                # logger.log(f"JSON 파싱 성공 - 카테고리: {category}")
-                # logger.log(f"JSON 파싱 성공 - 키워드: {tags}")
+                logger.log(f"구조화된 파싱 성공 - 제목: {title}")
+                logger.log(f"구조화된 파싱 성공 - 내용 길이: {len(blog_content)}")
                 
-            else:
-                raise json.JSONDecodeError("JSON 추출 실패", "", 0)
+            except Exception:
+                # 구조화된 파싱 실패시 기존 JSON 방식으로 fallback
+                logger.log("구조화된 파싱 실패, JSON 파싱으로 fallback")
+                
+                # JSON 코드 블록 마커 제거
+                cleaned_response = raw_response.strip()
+                if cleaned_response.startswith('```json'):
+                    cleaned_response = cleaned_response[7:]
+                if cleaned_response.endswith('```'):
+                    cleaned_response = cleaned_response[:-3]
+                cleaned_response = cleaned_response.strip()
+                
+                # JSON 추출 및 파싱
+                json_data = json.loads(cleaned_response)
+                if json_data:
+                    title = json_data.get('title', topic['title'])
+                    blog_content = json_data.get('content', '')
+                    category = json_data.get('category', '')
+                    tags = json_data.get('tags', [])
+                    
+                    logger.log(f"JSON 파싱 성공 - 제목: {title}")
+                    logger.log(f"JSON 파싱 성공 - 내용 길이: {len(blog_content)}")
+                    
+                else:
+                    raise json.JSONDecodeError("JSON 추출 실패", "", 0)
                 
         except (json.JSONDecodeError, ValueError, TypeError) as e:
             logger.log(f"JSON 파싱 실패: {str(e)}")
-            logger.log("기존 방식으로 fallback 처리")
+            logger.log("텍스트 방식으로 fallback 처리")
             
-            # 기존 방식으로 fallback
+            # 최후 수단으로 텍스트 방식 fallback
             blog_content = raw_response
             lines = blog_content.strip().split('\n')
             title = lines[0].replace('#', '').strip() if lines else topic['title']
-            
-            # Temp
             category = ''
             tags = []
             

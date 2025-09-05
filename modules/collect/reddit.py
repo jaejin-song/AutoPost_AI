@@ -18,18 +18,29 @@ def fetch_reddit_posts(subreddits: List[str]):
     reddit_posts: List[Article] = []
     
     for subreddit in subreddits:
-        for submission in reddit.subreddit(subreddit).top(time_filter="day", limit=50):
-            title = submission.title              # 글 제목
-            content = submission.selftext         # 글 본문 (텍스트)
-            url = submission.url                  # 외부 링크가 있으면 URL
-            if content and len(content) >= 1000:
-                reddit_posts.append(Article(
-                        title=title,
-                        content=content,
-                        url=url,
-                        source="reddit",
-                        subject=subreddit
-                ))
+        try:
+            # top posts를 먼저 시도
+            top_posts = list(reddit.subreddit(subreddit).top(time_filter="day", limit=50))
+            
+            # top posts가 없으면 hot posts로 fallback
+            if len(top_posts) == 0:
+                top_posts = list(reddit.subreddit(subreddit).hot(limit=50))
+            
+            for submission in top_posts:
+                title = submission.title              # 글 제목
+                content = submission.selftext         # 글 본문 (텍스트)
+                url = submission.url                  # 외부 링크가 있으면 URL
+                if content and len(content) >= 100:
+                    reddit_posts.append(Article(
+                            title=title,
+                            content=content,
+                            url=url,
+                            source="reddit",
+                            subject=subreddit
+                    ))
+        except Exception as e:
+            print(f"Error fetching posts from r/{subreddit}: {e}")
+            continue
                 
     return reddit_posts
     

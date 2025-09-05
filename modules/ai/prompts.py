@@ -37,7 +37,7 @@ def get_default_prompt_template(topic: Dict, account_topic: str, account_languag
 def get_life_tips_prompt_template(topic: Dict, account_topic: str, account_language: str, account_category: list) -> str:
     """생활의빈틈 블로그 특화 프롬프트"""
     return f"""
-아래에 제공된 레딧 글을 꿀팁을 소개하는 글을 작성해줘.
+아래에 제공된 레딧 글을 바탕으로 생활의 팁을 소개하는 글을 작성해줘.
 
 입력 데이터:
 제목: {topic['title']}
@@ -53,21 +53,16 @@ def get_life_tips_prompt_template(topic: Dict, account_topic: str, account_langu
   "category": {account_category} 중에서 가장 적합한 단어 1가지,
   "tags": 마케팅 실무진이 검색할 만한 키워드 배열
 }}
-3. 내용을 정리해서 소개하고 너의 생각을 덧붙여서 작성해줘.
-4. ~해요체를 적절히 섞어서 사람이 쓴 것처럼 자연스러운 말투를 써줘.
+3. 커뮤니티에서 본 내용을 소개한다 정도로 출처를 얘기하고 "레딧"이라는 단어는 사용하지 말아줘.
+4. 내용을 정리해서 소개하고 너의 생각을 덧붙여서 작성해줘.
 5. 사람이 쓴 것처럼 자연스러운 글을 써줘.
-4. {account_language}로 작성해.
+6. {account_language}로 작성해.
 
 출력은 반드시 JSON 형식만 출력해.
 """
 
 def get_prompt_template_for_set(set_name: str, topic: Dict, account_topic: str, account_language: str, account_category: list) -> str:
     """계정 세트별로 적절한 프롬프트 템플릿 선택"""
-    
-    # 계정 정보에서 프롬프트 타입 확인
-    accounts = load_accounts()
-    account_info = accounts.get(set_name, {})
-    prompt_type = account_info.get('prompt_type', 'default')
     
     # 프롬프트 타입별 템플릿 선택
     prompt_templates = {
@@ -77,5 +72,5 @@ def get_prompt_template_for_set(set_name: str, topic: Dict, account_topic: str, 
         'life_tips': get_life_tips_prompt_template,
     }
     
-    template_function = prompt_templates.get(prompt_type, get_default_prompt_template)
+    template_function = prompt_templates.get(set_name, get_default_prompt_template)
     return template_function(topic, account_topic, account_language, account_category)
