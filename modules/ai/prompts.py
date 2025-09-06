@@ -70,12 +70,12 @@ def get_prompt_template_for_set(set_name: str, topic: Dict, account_topic: str, 
     prompt_templates = {
         'default': get_default_prompt_template,
         'finance': get_default_prompt_template,
-        'jtaek': get_default_prompt_template,
+        'jtaek': get_ollama_prompt_template,
         'life_tips': get_ollama_prompt_template,
         'relationship': get_ollama_prompt_template,
         'programming': get_ollama_prompt_template,
         'tech': get_ollama_prompt_template,
-        'ai': get_ollama_prompt_template,
+        'ai': get_default_prompt_template,
         'fitness': get_ollama_prompt_template,
     }
     
