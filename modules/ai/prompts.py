@@ -37,7 +37,7 @@ def get_default_prompt_template(topic: Dict, account_topic: str, account_languag
 
 def get_ollama_prompt_template(topic: Dict, account_topic: str, account_language: str, account_category: list) -> str:
     return f"""
-아래에 제공된 레딧 글을 바탕으로 생활의 팁을 소개하는 글을 작성해줘.
+아래에 제공된 레딧 글을 바탕으로 {account_topic} 주제의 블로그 글을 작성해줘
 
 입력 데이터:
 제목: {topic['title']}

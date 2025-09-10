@@ -162,7 +162,7 @@ class LLMProviderFactory:
     @staticmethod
     def create_provider(config: Dict[str, Any]) -> Optional[LLMProvider]:
         """설정에 따라 LLM Provider 생성"""
-        provider_type = config.get("provider", "claude").lower()
+        provider_type = config.get("provider", "ollama").lower()
         model = config.get("model", "")
         
         if provider_type == "claude":
@@ -170,7 +170,7 @@ class LLMProviderFactory:
             return ClaudeProvider(model=model or default_model)
         
         elif provider_type == "ollama":
-            default_model = "llama3.2"
+            default_model = "gemma3n:e2b"
             base_url = config.get("base_url", "http://localhost:11434")
             return OllamaProvider(model=model or default_model, base_url=base_url)
         
