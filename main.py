@@ -22,7 +22,9 @@ Nvidia의 H20 칩은 미국 정부의 수출 규제에 따라 중국 시장에 �
 # 그날의 가장 베스트 글을 보여주기 때문에 최대한 늦은 시간에 실행하는게 좋음.
 
 def main():
-    logger.log("🚀 AutoPost AI 시작")
+    from datetime import datetime
+    today = datetime.now().strftime('%Y-%m-%d')
+    logger.log(f"🚀 AutoPost AI 시작 ({today})")
 
     account_sets = load_accounts()
 

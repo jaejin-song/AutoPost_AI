@@ -335,7 +335,7 @@ def mark_topic_as_used(topic: Dict, set_name: str):
     except Exception as e:
         logger.log(f"주제 사용 표시 중 오류 발생: {e}")
 
-def generate_blog_post(set_name: str, max_posts: int = 10) -> List[Post]:
+def generate_blog_post(set_name: str, max_posts: int) -> List[Post]:
     """계정 세트별로 블로그 글 생성"""
     
     # 스프레드시트에서 주제 목록 가져오기
