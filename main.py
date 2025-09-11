@@ -45,7 +45,7 @@ def main():
         spreadsheet.save_news(set_name, reddit_posts)
 
         # # 3. 뉴스 선정 및 글 작성
-        blog_posts = content_writer.generate_blog_post(set_name, max_posts=10)
+        blog_posts = content_writer.generate_blog_post(set_name, max_posts=5)
         
         # from modules.ai.content_writer import Post
         # blog_posts = [
